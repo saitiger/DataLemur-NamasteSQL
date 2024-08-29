@@ -1,0 +1,3 @@
+CRM 
+
+Inspired from The Datawarehouse Toolkit by Ralph Kimball
