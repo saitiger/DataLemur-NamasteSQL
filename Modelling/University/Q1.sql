@@ -1,5 +1,3 @@
-Database Used --> Oracle using Livesql
-
 CREATE TABLE ProjectRoomBookings
 (roomNum INTEGER NOT NULL,
 startTime INTEGER NOT NULL ,
