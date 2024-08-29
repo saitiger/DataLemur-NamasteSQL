@@ -1,236 +1,184 @@
--- A. Customer Journey
-Based off the 8 sample customers provided in the sample from the subscriptions table, write a brief description about each customer’s onboarding journey.
-
-Try to keep it as short as possible - you may also want to run some sort of join to make your explanations a bit easier!
-
-with summary as (
-select customer_id,count(s.plan_id) as cnt ,min(start_date) as mn,
-  max(start_date) as mx , sum(p.price) as total_amount_paid
-  from foodie_fi.subscriptions s
-  join foodie_fi.plans p
-  on s.plan_id = p.plan_id
-group by customer_id
-  )
-
--- top_paying 
-
-select customer_id,mn,mx,total_amount_paid from summary where cnt>=3
-order by 4 desc
-
--- number of customers who churned 
-
-select 
-round(100.0*sum(case when s.plan_id = 4 then 1 else 0 end)/count(distinct customer_id),2) as pct_churn
-from
-foodie_fi.plans p join foodie_fi.subscriptions s
-on p.plan_id = s.plan_id
-
-with cust_journey as (
-select 
-s.customer_id,p.plan_id, p.plan_name,  s.start_date,
-row_number() over (partition by customer_id order by start_date) as rn 
-from foodie_fi.plans p
-join foodie_fi.subscriptions s
-  on p.plan_id = s.plan_id
-where s.customer_id in (1,2,11,13,15,16,18,19)
+-- Summary of customer subscriptions
+WITH SUMMARY AS (
+    SELECT CUSTOMER_ID, COUNT(S.PLAN_ID) AS CNT, 
+           MIN(START_DATE) AS MIN_DATE, MAX(START_DATE) AS MAX_DATE, 
+           SUM(P.PRICE) AS TOTAL_AMOUNT_PAID
+    FROM FOODIE_FI.SUBSCRIPTIONS S
+    JOIN FOODIE_FI.PLANS P ON S.PLAN_ID = P.PLAN_ID
+    GROUP BY CUSTOMER_ID
 )
-  
--- onboarding
-select customer_id, plan_id, plan_name,start_date from cust_journey 
-  where rn = 1;
- --all customers started with the trial plan churning after trial 
 
-select c1.customer_id from cust_journey c1 join cust_journey c2 
-on c1.customer_id = c2.customer_id and c1.plan_id = 0 and c2.plan_id = 4 and c2.rn - c1.rn = 1
-group by 1
-  
---most bought plan after trial 
-select plan_id,count(plan_id) from cust_journey where rn=2 group by plan_id 
+-- Top paying customers
+SELECT CUSTOMER_ID, MIN_DATE, MAX_DATE, TOTAL_AMOUNT_PAID 
+FROM SUMMARY 
+WHERE CNT >= 3
+ORDER BY TOTAL_AMOUNT_PAID DESC;
 
-select s.customer_id,
-       p.plan_name,
-       s.start_date,
-       start_date - lag(start_date) over (partition by customer_id order by start_date) as days_between_subscription
-from foodie_fi.subscriptions s join foodie_fi.plans p
-on s.plan_id = p.plan_id
-where s.customer_id in (1,2,11,13,15,16,18,19)
+-- Number of customers who churned
+SELECT ROUND(100.0 * SUM(CASE WHEN S.PLAN_ID = 4 THEN 1 ELSE 0 END) / COUNT(DISTINCT CUSTOMER_ID), 2) AS PCT_CHURN
+FROM FOODIE_FI.PLANS P 
+JOIN FOODIE_FI.SUBSCRIPTIONS S ON P.PLAN_ID = S.PLAN_ID;
 
-1) How many customers has Foodie-Fi ever had?
-2) What is the monthly distribution of trial plan start_date values for our dataset - use the start of the month as the group by value
-3) What plan start_date values occur after the year 2020 for our dataset? Show the breakdown by count of events for each plan_name
-4) What is the customer count and percentage of customers who have churned rounded to 1 decimal place?
-5) How many customers have churned straight after their initial free trial - what percentage is this rounded to the nearest whole number?
-6) What is the number and percentage of customer plans after their initial free trial?
-7) How many customers have upgraded to an annual plan in 2020?
-8) How many days on average does it take for a customer to an annual plan from the day they join Foodie-Fi?
-9) How many days on average does it take for a customer to an annual plan from the day they join Foodie-Fi?
-10) Can you further breakdown this average value into 30 day periods (i.e. 0-30 days, 31-60 days etc)
-11) How many customers downgraded from a pro monthly to a basic monthly plan in 2020?
-
-select count(distinct customer_id) from foodie_fi.subscriptions
-
-select extract(month from start_date) as mnth, count(*)
-from foodie_fi.subscriptions s join foodie_fi.plans p 
-on s.plan_id = p.plan_id 
-where p.plan_id = 0
-group by 1
-order by 1
-
-select p.plan_name, count(*)
-from foodie_fi.subscriptions s join foodie_fi.plans p 
-on s.plan_id = p.plan_id 
-where extract(year from s.start_date) > 2020
-group by 1
-order by 2 desc
-
-select sum(case when s.plan_id = 4 then 1 else 0 end) as churn_count,
-round(100.0*sum(case when s.plan_id = 4 then 1 else 0 end)/count(distinct customer_id),1) as churn_pct 
-from foodie_fi.subscriptions s join foodie_fi.plans p 
-on s.plan_id = p.plan_id 
-
-with cust_rnk as (
-select 
-s.customer_id,p.plan_id, p.plan_name,  s.start_date,
-row_number() over (partition by customer_id order by start_date) as rn 
-from foodie_fi.plans p
-join foodie_fi.subscriptions s
-  on p.plan_id = s.plan_id
+-- Customer journey details
+WITH CUST_JOURNEY AS (
+    SELECT S.CUSTOMER_ID, P.PLAN_ID, P.PLAN_NAME, S.START_DATE,
+           ROW_NUMBER() OVER (PARTITION BY CUSTOMER_ID ORDER BY START_DATE) AS RN 
+    FROM FOODIE_FI.PLANS P
+    JOIN FOODIE_FI.SUBSCRIPTIONS S ON P.PLAN_ID = S.PLAN_ID
+    WHERE S.CUSTOMER_ID IN (1, 2, 11, 13, 15, 16, 18, 19)
 )
-select count(c1.customer_id) as churn_after_trial,
-round(100.0*count(c1.customer_id)/(select count(distinct customer_id) from foodie_fi.subscriptions)) as pct_churn
-from cust_rnk c1 join cust_rnk c2 
-on c1.customer_id = c2.customer_id and c1.plan_id = 0 
-where c2.plan_id = 4 and c2.rn - c1.rn = 1
 
-with after_trial as (
-select customer_id,s.plan_id,lead(s.plan_id,1) over (partition by customer_id order by start_date) as nxt_plan
-from foodie_fi.plans p
-join foodie_fi.subscriptions s
-on p.plan_id = s.plan_id
+-- Onboarding information
+SELECT CUSTOMER_ID, PLAN_ID, PLAN_NAME, START_DATE 
+FROM CUST_JOURNEY 
+WHERE RN = 1;
+
+-- Customers who churned after trial
+SELECT C1.CUSTOMER_ID 
+FROM CUST_JOURNEY C1 
+JOIN CUST_JOURNEY C2 ON C1.CUSTOMER_ID = C2.CUSTOMER_ID 
+    AND C1.PLAN_ID = 0 
+    AND C2.PLAN_ID = 4 
+    AND C2.RN - C1.RN = 1
+GROUP BY C1.CUSTOMER_ID;
+
+-- Most bought plan after trial
+SELECT PLAN_ID, COUNT(PLAN_ID) 
+FROM CUST_JOURNEY 
+WHERE RN = 2 
+GROUP BY PLAN_ID;
+
+-- Days between subscriptions
+SELECT S.CUSTOMER_ID, P.PLAN_NAME, S.START_DATE,
+       START_DATE - LAG(START_DATE) OVER (PARTITION BY CUSTOMER_ID ORDER BY START_DATE) AS DAYS_BETWEEN_SUBSCRIPTION
+FROM FOODIE_FI.SUBSCRIPTIONS S 
+JOIN FOODIE_FI.PLANS P ON S.PLAN_ID = P.PLAN_ID
+WHERE S.CUSTOMER_ID IN (1, 2, 11, 13, 15, 16, 18, 19);
+
+-- Number of customers ever
+SELECT COUNT(DISTINCT CUSTOMER_ID) 
+FROM FOODIE_FI.SUBSCRIPTIONS;
+
+-- Monthly distribution of trial plan start dates
+SELECT EXTRACT(MONTH FROM START_DATE) AS MONTH, COUNT(*)
+FROM FOODIE_FI.SUBSCRIPTIONS S 
+JOIN FOODIE_FI.PLANS P ON S.PLAN_ID = P.PLAN_ID 
+WHERE P.PLAN_ID = 0
+GROUP BY EXTRACT(MONTH FROM START_DATE)
+ORDER BY MONTH;
+
+-- Plan start dates after 2020 with breakdown
+SELECT P.PLAN_NAME, COUNT(*)
+FROM FOODIE_FI.SUBSCRIPTIONS S 
+JOIN FOODIE_FI.PLANS P ON S.PLAN_ID = P.PLAN_ID 
+WHERE EXTRACT(YEAR FROM S.START_DATE) > 2020
+GROUP BY P.PLAN_NAME
+ORDER BY COUNT(*) DESC;
+
+-- Customer count and percentage of churn
+SELECT SUM(CASE WHEN S.PLAN_ID = 4 THEN 1 ELSE 0 END) AS CHURN_COUNT,
+       ROUND(100.0 * SUM(CASE WHEN S.PLAN_ID = 4 THEN 1 ELSE 0 END) / COUNT(DISTINCT CUSTOMER_ID), 1) AS CHURN_PERCENTAGE
+FROM FOODIE_FI.SUBSCRIPTIONS S 
+JOIN FOODIE_FI.PLANS P ON S.PLAN_ID = P.PLAN_ID;
+
+-- Customers who churned right after trial
+WITH CUST_RANK AS (
+    SELECT S.CUSTOMER_ID, P.PLAN_ID, P.PLAN_NAME, S.START_DATE,
+           ROW_NUMBER() OVER (PARTITION BY CUSTOMER_ID ORDER BY START_DATE) AS RN 
+    FROM FOODIE_FI.PLANS P
+    JOIN FOODIE_FI.SUBSCRIPTIONS S ON P.PLAN_ID = S.PLAN_ID
 )
-select nxt_plan,count(*) as count_conversion,round(100.0*count(*)/(select count(distinct customer_id) from foodie_fi.subscriptions),1) as pct_conversion
-from after_trial 
-where plan_id = 0 and nxt_plan is not null
-group by nxt_plan
+SELECT COUNT(C1.CUSTOMER_ID) AS CHURN_AFTER_TRIAL,
+       ROUND(100.0 * COUNT(C1.CUSTOMER_ID) / (SELECT COUNT(DISTINCT CUSTOMER_ID) FROM FOODIE_FI.SUBSCRIPTIONS), 0) AS PERCENT_CHURN
+FROM CUST_RANK C1 
+JOIN CUST_RANK C2 ON C1.CUSTOMER_ID = C2.CUSTOMER_ID 
+    AND C1.PLAN_ID = 0 
+    AND C2.PLAN_ID = 4 
+    AND C2.RN - C1.RN = 1;
 
-
-with cust_rnk as (
-select 
-s.customer_id,p.plan_id, p.plan_name,  s.start_date,
-row_number() over (partition by customer_id order by start_date) as rn 
-from foodie_fi.plans p
-join foodie_fi.subscriptions s
-  on p.plan_id = s.plan_id
+-- Breakdown of customer plans after trial
+WITH AFTER_TRIAL AS (
+    SELECT CUSTOMER_ID, S.PLAN_ID, LEAD(S.PLAN_ID, 1) OVER (PARTITION BY CUSTOMER_ID ORDER BY START_DATE) AS NEXT_PLAN
+    FROM FOODIE_FI.PLANS P
+    JOIN FOODIE_FI.SUBSCRIPTIONS S ON P.PLAN_ID = S.PLAN_ID
 )
-select plan_id,count(*) as count_conversion,
-round(100.0*count(*)/(select count(distinct customer_id) from foodie_fi.subscriptions),1) as pct_conversion
-from cust_rnk 
-where rn = 2
-group by plan_id
+SELECT NEXT_PLAN, COUNT(*) AS COUNT_CONVERSION,
+       ROUND(100.0 * COUNT(*) / (SELECT COUNT(DISTINCT CUSTOMER_ID) FROM FOODIE_FI.SUBSCRIPTIONS), 1) AS PERCENT_CONVERSION
+FROM AFTER_TRIAL 
+WHERE PLAN_ID = 0 AND NEXT_PLAN IS NOT NULL
+GROUP BY NEXT_PLAN;
 
-with latest_plan as (
-  select *, rank() over(partition by customer_id order by start_date desc) as rnk
-  from foodie_fi.subscriptions
-  where start_date <= '2020-12-31'
-  )
-  select plan_id,count(*) as cnt,
-  round(100.0*count(*)/(select count(distinct customer_id) from foodie_fi.subscriptions),1) as pct_total
-  from latest_plan 
-  where rnk = 1 
-  group by 1
-  
-select count(customer_id) as cnt 
-from foodie_fi.subscriptions
-where extract(year from start_date) = 2020
-and plan_id = 3
-
-with initial_date as (
-select customer_id,min(start_date) as initial_date 
-  from foodie_fi.subscriptions
-  group by customer_id
-  ),
-final_date as (
-select customer_id,min(start_date) as final_date 
-  from foodie_fi.subscriptions
-  where plan_id = 3
-  group by customer_id
+-- Number and percentage of customer plans after initial free trial
+WITH CUST_RANK AS (
+    SELECT S.CUSTOMER_ID, P.PLAN_ID, P.PLAN_NAME, S.START_DATE,
+           ROW_NUMBER() OVER (PARTITION BY CUSTOMER_ID ORDER BY START_DATE) AS RN 
+    FROM FOODIE_FI.PLANS P
+    JOIN FOODIE_FI.SUBSCRIPTIONS S ON P.PLAN_ID = S.PLAN_ID
 )
-select 
-round(avg(cast(final_date - initial_date as decimal)),0) as avg_days 
-from initial_date i join final_date f
-on i.customer_id = f.customer_id
+SELECT PLAN_ID, COUNT(*) AS COUNT_CONVERSION,
+       ROUND(100.0 * COUNT(*) / (SELECT COUNT(DISTINCT CUSTOMER_ID) FROM FOODIE_FI.SUBSCRIPTIONS), 1) AS PERCENT_CONVERSION
+FROM CUST_RANK 
+WHERE RN = 2
+GROUP BY PLAN_ID;
 
-with initial_date as (
-select customer_id,min(start_date) as initial_date 
-  from foodie_fi.subscriptions
-  group by customer_id
-  ),
-final_date as (
-select customer_id,min(start_date) as final_date 
-  from foodie_fi.subscriptions
-  where plan_id = 3
-  group by customer_id
+-- Customers upgrading to annual plan in 2020
+WITH LATEST_PLAN AS (
+    SELECT *, RANK() OVER (PARTITION BY CUSTOMER_ID ORDER BY START_DATE DESC) AS RANK
+    FROM FOODIE_FI.SUBSCRIPTIONS
+    WHERE START_DATE <= '2020-12-31'
+)
+SELECT COUNT(CUSTOMER_ID) AS COUNT 
+FROM LATEST_PLAN 
+WHERE RANK = 1 AND PLAN_ID = 3 AND EXTRACT(YEAR FROM START_DATE) = 2020;
+
+-- Average days to annual plan from joining Foodie-Fi
+WITH INITIAL_DATE AS (
+    SELECT CUSTOMER_ID, MIN(START_DATE) AS INITIAL_DATE 
+    FROM FOODIE_FI.SUBSCRIPTIONS
+    GROUP BY CUSTOMER_ID
 ),
-buckets as (select width_bucket(f.final_date - i.initial_date, 0, 360, 12) AS bucket,
-count(i.customer_id) AS customer_count,
-     ROUND(avg(cast(f.final_date - i.initial_date AS DECIMAL)), 0) AS average_days
-                  from   initial_date i
-                  join   final_date f
-                  on     i.customer_id = f.customer_id
-                  group  by width_bucket (final_date - initial_date, 0, 360, 12)
-                 )
-select case 
-           when bucket = 1 
-           then concat((bucket - 1) * 30,' - ', bucket * 30, ' days') 
-           else concat((bucket - 1) * 30 + 1,' - ', bucket * 30, ' days')
-       end as period,
-       customer_count,
-       average_days
-from   buckets
-group by bucket, customer_count, average_days
-order by bucket 
+FINAL_DATE AS (
+    SELECT CUSTOMER_ID, MIN(START_DATE) AS FINAL_DATE 
+    FROM FOODIE_FI.SUBSCRIPTIONS
+    WHERE PLAN_ID = 3
+    GROUP BY CUSTOMER_ID
+)
+SELECT ROUND(AVG(CAST(FINAL_DATE - INITIAL_DATE AS DECIMAL)), 0) AS AVG_DAYS 
+FROM INITIAL_DATE I 
+JOIN FINAL_DATE F ON I.CUSTOMER_ID = F.CUSTOMER_ID;
 
-with pro_monthly as (
-select 
-s.customer_id,start_date
-from foodie_fi.subscriptions s
-where plan_id = 3
+-- Breakdown of average days to annual plan into 30-day periods
+WITH INITIAL_DATE AS (
+    SELECT CUSTOMER_ID, MIN(START_DATE) AS INITIAL_DATE 
+    FROM FOODIE_FI.SUBSCRIPTIONS
+    GROUP BY CUSTOMER_ID
 ),
-basic_monthly as (
-select 
-s.customer_id,start_date
-from foodie_fi.subscriptions s
-where plan_id = 2
+FINAL_DATE AS (
+    SELECT CUSTOMER_ID, MIN(START_DATE) AS FINAL_DATE 
+    FROM FOODIE_FI.SUBSCRIPTIONS
+    WHERE PLAN_ID = 3
+    GROUP BY CUSTOMER_ID
+),
+BUCKETS AS (
+    SELECT WIDTH_BUCKET(F.FINAL_DATE - I.INITIAL_DATE, 0, 360, 12) AS BUCKET,
+           COUNT(I.CUSTOMER_ID) AS CUSTOMER_COUNT,
+           ROUND(AVG(CAST(F.FINAL_DATE - I.INITIAL_DATE AS DECIMAL)), 0) AS AVERAGE_DAYS
+    FROM INITIAL_DATE I
+    JOIN FINAL_DATE F ON I.CUSTOMER_ID = F.CUSTOMER_ID
+    GROUP BY WIDTH_BUCKET(F.FINAL_DATE - I.INITIAL_DATE, 0, 360, 12)
 )
-select count(*) from pro_monthly p join basic_monthly b 
-on p.customer_id = b.customer_id and p.start_date <= b.start_date
+SELECT CASE 
+           WHEN BUCKET = 1 THEN CONCAT((BUCKET - 1) * 30, ' - ', BUCKET * 30, ' DAYS') 
+           ELSE CONCAT((BUCKET - 1) * 30 + 1, ' - ', BUCKET * 30, ' DAYS')
+       END AS PERIOD,
+       CUSTOMER_COUNT,
+       AVERAGE_DAYS
+FROM BUCKETS
+GROUP BY BUCKET, CUSTOMER_COUNT, AVERAGE_DAYS
+ORDER BY BUCKET;
 
--- Challenge Payment Question
-The Foodie-Fi team wants you to create a new payments table for the year 2020 that includes amounts paid by each customer in 
-the subscriptions table with the following requirements:
-monthly payments always occur on the same day of month as the original start_date of any monthly paid plan
-upgrades from basic to monthly or pro plans are reduced by the current paid amount in that month and start immediately
-upgrades from pro monthly to pro annual are paid at the end of the current billing period and also starts at the end of the month period
-once a customer churns they will no longer make payments
-
-with series as(
-select s.customer_id,s.plan_id,p.plan_name,
-cast(generate_series(s.start_date,case when s.plan_id in(0, 3, 4) then s.start_date 
-when s.plan_id in (1, 2) and lead(s.plan_id) over (partition by s.customer_id order by s.start_date) <> s.plan_id then LEAD(s.start_date) 
-over (partition by s.customer_id order by s.start_date) - 1 
-else '2020-12-31' end,'1 MONTH') as date) payment_date,p.price
-from subscriptions s
-join plans p
-on s.plan_id = p.plan_id
-where extract(year from s.start_date) = 2020
-)
-select customer_id,plan_id,plan_name,payment_date,
-case when plan_id = 1 then price
-when plan_id IN (2, 3) and lag(plan_id) over (partition by customer_id order by payment_date) <> plan_id
-and payment_date - lag(payment_date) over (partition by customer_id order by payment_date) < 30
-then price - lag(price) over (partition by customer_id order by payment_date)
-else price end as amount,
-rank() OVER (partition by customer_id order by payment_date) AS rnk
-into payments
-from series
-where plan_id not in (0, 4)
+-- Customers downgrading from Pro Monthly to Basic Monthly in 2020
+WITH PRO_MONTHLY AS (
+    SELECT CUSTOMER_ID, START_DATE
+    FROM FOODIE_FI.SUBSCRIPTIONS
+    WHERE PLAN_ID
