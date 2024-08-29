@@ -1,0 +1,30 @@
+
+Assumptions --> 
+
+A student can take a maximum of one course per week.
+
+A project group is a dispanded at the end of the week and based on the new groups the students are assigned new projects and groupid.
+
+Giving books later the 2 week deadline will lead to a fine.
+
+1) The entity management represents employees (EID is the employee ID which serves as the primary key) of the STEM company for whom we are building the database. I am considering them to be responsible for placing orders for hardware like microcontrollers, sensors and other hardware required for the projects. They will also be recruiting and disburing the salary for the instructors as well as enrolling students in the program. 
+
+2) The fine entity holds record of defaulters who return damaged hardware at the end of the project as well as i have included late fees for those who return books after the due date. The condition of the hardware parts is examined by the institute and the data is stored in the entity Project Group. Total Fine is the sum of Damage fee and Late fee. 
+
+3) A separate entity rating is maintained to keep records of ratings given by a student for the classes he or she has completed as well as for easy aggregation of ratings.
+
+4) The entity order is used for maintaing the orders from different website/ vendors from whom the institue orders hardware based on the requirement. It will help in finding cost associated with each supplier and cost associated with specific items. To uniquely identify orders associated with a supplier and particular bill both OrderID and SupplierID are used as a primary key.
+
+5) Library entity is used to store data about the books available for reading and also logs the books issued. At any point of time a student can have a maximum of 4 books issued which is mentioned as a constraint in the attribute No_Bookissued. Due date is calculated from 2 weeks from Issue date and is a derived attribute.
+
+6) The instructor entity houses all details about the lecturer taking the classes. The domain expertise mentions the field of study of the lecturer. Teaching time and Supervision time are the duration of time devoted by the instructor for the two jobs and are used to calculate the salary. Preffered textbook is the reading material used by the instructor for students reference. 
+
+7) Course stores all data about the course like syllabus, a brief description of the course while project ideas is the list of suggested projects students can take up during the course.
+
+8) Course Schedule gives information about when and where the classes will be held along with the instructor responsbile for teaching. The relation with students is one to many since a student can have only course schedule during a week because a student takes one class per week, while the same schedule is shared by multiple students hence one to many.
+
+9) Project Group is used to hold information of students who are working together in a project, the table number and topic assigned to them. It also contains the attribute Parts_condition which is filled once students return the parts and they are checked for any defects.
+
+10) The entity Rooms acts as an intermediary between Course and Course schedule and serves the functions of a metadata store for room availability and location. 
+
+11) The student entity contains all necessary details of an enrolled student. StudentID is an artificial key rather than using SSN for privarcy concerns. The student id is issued by the institute whenever a student enrolls in the program and pays the complete fee. 
